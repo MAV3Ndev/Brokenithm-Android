@@ -449,12 +449,13 @@ class MainActivity : AppCompatActivity() {
             textInfo.visibility = if (isChecked) View.VISIBLE else View.GONE
         }
 
-        gapWidth = windowWidth / (numOfButtons * buttonWidthToGap + numOfGaps)
-        buttonWidth = gapWidth * buttonWidthToGap
-        // For LED display, use 16-axis formula to maintain visual ratio
+        gapWidth = 0f
+        buttonWidth = windowWidth / numOfButtons
+        val buttonBlockWidth = buttonWidth
+
+        // LED rendering uses original 16-button layout with gaps
         ledGapWidth = windowWidth / (16 * buttonWidthToGap + 16)
         ledButtonWidth = ledGapWidth * buttonWidthToGap
-        val buttonBlockWidth = buttonWidth + gapWidth
         val buttonAreaHeight = windowHeight * 0.5f
         val airAreaHeight = windowHeight * 0.35f
         val airBlockHeight = (buttonAreaHeight - airAreaHeight) / numOfAirBlock
