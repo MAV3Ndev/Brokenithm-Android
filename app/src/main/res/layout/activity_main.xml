@@ -72,13 +72,11 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/expand_control" />
 
-    <net.cachapa.expandablelayout.ExpandableLayout
+    <LinearLayout
         android:id="@+id/expand_control"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:el_duration="500"
-        app:el_expanded="true"
-        app:el_parallax="0.5"
+        android:orientation="vertical"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
@@ -242,7 +240,7 @@
                 app:layout_constraintTop_toTopOf="@+id/text_mode" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
-    </net.cachapa.expandablelayout.ExpandableLayout>
+    </LinearLayout>
 
     <TextView
         android:id="@+id/text_expand"

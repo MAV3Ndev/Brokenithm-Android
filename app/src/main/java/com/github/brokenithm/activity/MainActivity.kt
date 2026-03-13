@@ -23,7 +23,6 @@ import com.github.brokenithm.BrokenithmApplication
 import com.github.brokenithm.R
 import com.github.brokenithm.util.AsyncTaskUtil
 import com.github.brokenithm.util.FeliCa
-import net.cachapa.expandablelayout.ExpandableLayout
 import java.net.*
 import java.nio.ByteBuffer
 import java.util.*
@@ -44,8 +43,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mTCPSocket : Socket
 
     // state
-    private val numOfButtons = 16
-    private val numOfGaps = 16
+    private val numOfButtons = 32
+    private val numOfGaps = 0
     private val buttonWidthToGap = 7.428571f
     private val numOfAirBlock = 6
     private var mEnableTouchSize = false
@@ -66,6 +65,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mLEDCanvas: Canvas
     private var buttonWidth = 0f
     private var gapWidth = 0f
+    private var ledButtonWidth = 0f
+    private var ledGapWidth = 0f
     private lateinit var mButtonRenderer: View
 
     // vibrator
@@ -430,15 +431,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initTouchArea(windowLeft: Int, windowTop: Int) {
-        val expandControl = findViewById<ExpandableLayout>(R.id.expand_control)
+        val expandControl = findViewById<View>(R.id.expand_control)
         val textExpand = findViewById<TextView>(R.id.text_expand)
         textExpand.setOnClickListener {
-            if (expandControl.isExpanded) {
+            if (expandControl.visibility == View.VISIBLE) {
+                expandControl.visibility = View.GONE
                 (it as TextView).setText(R.string.expand)
-                expandControl.collapse()
             } else {
+                expandControl.visibility = View.VISIBLE
                 (it as TextView).setText(R.string.collapse)
-                expandControl.expand()
             }
         }
 
@@ -450,7 +451,9 @@ class MainActivity : AppCompatActivity() {
 
         gapWidth = windowWidth / (numOfButtons * buttonWidthToGap + numOfGaps)
         buttonWidth = gapWidth * buttonWidthToGap
-        //val buttonWidth = windowWidth / numOfButtons
+        // For LED display, use 16-axis formula to maintain visual ratio
+        ledGapWidth = windowWidth / (16 * buttonWidthToGap + 16)
+        ledButtonWidth = ledGapWidth * buttonWidthToGap
         val buttonBlockWidth = buttonWidth + gapWidth
         val buttonAreaHeight = windowHeight * 0.5f
         val airAreaHeight = windowHeight * 0.35f
@@ -462,8 +465,6 @@ class MainActivity : AppCompatActivity() {
         mButtonRenderer.background = BitmapDrawable(resources, mLEDBitmap)
 
         findViewById<View>(R.id.touch_area).setOnTouchListener { view, event ->
-            if (expandControl.isExpanded)
-                textExpand.callOnClick()
             view ?: return@setOnTouchListener view.performClick()
             event ?: return@setOnTouchListener view.performClick()
             if (mTouchAreaRect == null) {
@@ -500,16 +501,11 @@ class MainActivity : AppCompatActivity() {
                             if (index > numOfButtons) index = numOfButtons
 
                             if (mEnableTouchSize) {
-                                var centerButton = index * 2
-                                if (touchedButtons.contains(centerButton)) centerButton++
-                                var leftButton = ((index - 1) * 2).coerceAtLeast(0)
-                                if (touchedButtons.contains(leftButton)) leftButton++
-                                var rightButton = ((index + 1) * 2).coerceAtMost(numOfButtons * 2)
-                                if (touchedButtons.contains(rightButton)) rightButton++
-                                var left2Button = ((index - 2) * 2).coerceAtLeast(0)
-                                if (touchedButtons.contains(left2Button)) left2Button++
-                                var right2Button = ((index + 2) * 2).coerceAtMost(numOfButtons * 2)
-                                if (touchedButtons.contains(right2Button)) right2Button++
+                                val centerButton = index
+                                val leftButton = (index - 1).coerceAtLeast(0)
+                                val rightButton = (index + 1).coerceAtMost(31)
+                                val left2Button = (index - 2).coerceAtLeast(0)
+                                val right2Button = (index + 2).coerceAtMost(31)
 
                                 val currentSize = event.getSize(i)
                                 maxTouchedSize = maxTouchedSize.coerceAtLeast(currentSize)
@@ -542,21 +538,15 @@ class MainActivity : AppCompatActivity() {
                                     }
                                 }
                             } else {
-                                if (index > 15) index = 15
-                                var targetIndex = index * 2
-                                if (touchedButtons.contains(targetIndex)) targetIndex++
-                                touchedButtons.add(targetIndex)
+                                if (index > 31) index = 31
+                                touchedButtons.add(index)
                                 if (index > 0) {
                                     if ((pointPos - index) * 4 < 1) {
-                                        targetIndex = (index - 1) * 2
-                                        if (touchedButtons.contains(targetIndex)) targetIndex++
-                                        touchedButtons.add(targetIndex)
+                                        touchedButtons.add(index - 1)
                                     }
                                 } else if (index < 31) {
                                     if ((pointPos - index) * 4 > 3) {
-                                        targetIndex = (index + 1) * 2
-                                        if (touchedButtons.contains(targetIndex)) targetIndex++
-                                        touchedButtons.add(targetIndex)
+                                        touchedButtons.add(index + 1)
                                     }
                                 }
                             }
@@ -608,7 +598,12 @@ class MainActivity : AppCompatActivity() {
     private fun enableNfcForegroundDispatch() {
         try {
             val intent = Intent(this, javaClass).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            val nfcPendingIntent = PendingIntent.getActivity(this, 0, intent, 0)
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PendingIntent.FLAG_IMMUTABLE
+            } else {
+                0
+            }
+            val nfcPendingIntent = PendingIntent.getActivity(this, 0, intent, flags)
             adapter?.enableForegroundDispatch(this, nfcPendingIntent, null, null)
         } catch (ex: IllegalStateException) {
             Log.e(TAG, "Error enabling NFC foreground dispatch", ex)
@@ -1081,21 +1076,18 @@ class MainActivity : AppCompatActivity() {
         val blockCount = numOfButtons + numOfGaps
         val steps = 32 / blockCount
         val offset = 4
-
         var drawXOffset = 0f
         val drawHeight = mLEDBitmap.height
-
         for (i in (blockCount - 1).downTo(0)) {
             val index = offset + (i * steps * 3)
             val blue = status[index].toInt() and 0xff
             val red = status[index + 1].toInt() and 0xff
             val green = status[index + 2].toInt() and 0xff
             val color = 0xff000000 or (red.toLong() shl 16) or (green.toLong() shl 8) or blue.toLong()
-
             val left = drawXOffset
-            val width = when(i.rem(2)) {
-                0 -> buttonWidth
-                1 -> gapWidth
+            val width = when (i.rem(2)) {
+                0 -> ledButtonWidth
+                1 -> ledGapWidth
                 else -> continue
             }
             val right = left + width
